@@ -5,7 +5,11 @@ import {
   GoogleAuthProvider, 
   signInWithPopup, 
   signOut, 
-  onAuthStateChanged
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -24,12 +28,12 @@ import { UserProfile, UrgeLog, ChatMessage } from '../types';
 // Standard Firebase config - since we are client-side, we look for VITE_ environment variables or check if there is an auto-injected config.
 // Usually, AI Studio might not inject VITE_ keys if the set_up_firebase failed, so we have a graceful fallback system.
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBqHu0E1UBsrHJB4YPCZDMFnkh5Qzw6xx0",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "habit-coaching-sanctuary.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "habit-coaching-sanctuary",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "habit-coaching-sanctuary.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1070160883509",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1070160883509:web:61aeef6099a1c45414e67c"
 };
 
 let app;
@@ -114,9 +118,9 @@ export const subscribeToAuth = (callback: AuthCallback) => {
   }
 };
 
-export const loginMockUser = (email: string, displayName: string) => {
+export const loginMockUser = (email: string, displayName: string, uid?: string) => {
   mockCurrentUser = {
-    uid: 'local_user_' + Math.random().toString(36).substring(2, 9),
+    uid: uid || 'local_user_' + Math.random().toString(36).substring(2, 9),
     email,
     displayName
   };
@@ -131,13 +135,94 @@ export const signInWithGoogle = async () => {
       const result = await signInWithPopup(auth, provider);
       return result.user;
     } catch (error) {
-      console.error("Google Sign-In failed, logging in as mock local user instead.", error);
-      loginMockUser("local-user@example.com", "Local User");
-      return mockCurrentUser;
+      console.error("Google Sign-In failed:", error);
+      throw error;
     }
   } else {
     loginMockUser("local-user@example.com", "Local User");
     return mockCurrentUser;
+  }
+};
+
+// Registered Users in LocalStorage for fully functional local mock environment
+interface MockRegisteredUser {
+  uid: string;
+  email: string;
+  password?: string;
+  displayName: string;
+}
+
+const getMockRegisteredUsers = (): MockRegisteredUser[] => {
+  const usersJson = localStorage.getItem('habit_coach_registered_users');
+  return usersJson ? JSON.parse(usersJson) : [];
+};
+
+const saveMockRegisteredUser = (user: MockRegisteredUser) => {
+  const users = getMockRegisteredUsers();
+  users.push(user);
+  localStorage.setItem('habit_coach_registered_users', JSON.stringify(users));
+};
+
+export const signInWithEmail = async (email: string, password?: string) => {
+  if (isFirebaseEnabled && auth) {
+    const result = await signInWithEmailAndPassword(auth, email, password || '');
+    return result.user;
+  } else {
+    const users = getMockRegisteredUsers();
+    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      const err = new Error("auth/user-not-found");
+      (err as any).code = "auth/user-not-found";
+      throw err;
+    }
+    if (password && user.password !== password) {
+      const err = new Error("auth/wrong-password");
+      (err as any).code = "auth/wrong-password";
+      throw err;
+    }
+    loginMockUser(user.email, user.displayName, user.uid);
+    return mockCurrentUser;
+  }
+};
+
+export const signUpWithEmail = async (email: string, password?: string, displayName?: string) => {
+  if (isFirebaseEnabled && auth) {
+    const result = await createUserWithEmailAndPassword(auth, email, password || '');
+    if (displayName) {
+      await updateProfile(result.user, { displayName });
+    }
+    return result.user;
+  } else {
+    const users = getMockRegisteredUsers();
+    if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+      const err = new Error("auth/email-already-in-use");
+      (err as any).code = "auth/email-already-in-use";
+      throw err;
+    }
+    const newUser: MockRegisteredUser = {
+      uid: 'local_user_' + Math.random().toString(36).substring(2, 9),
+      email,
+      password,
+      displayName: displayName || email.split('@')[0]
+    };
+    saveMockRegisteredUser(newUser);
+    loginMockUser(newUser.email, newUser.displayName, newUser.uid);
+    return mockCurrentUser;
+  }
+};
+
+export const resetPassword = async (email: string) => {
+  if (isFirebaseEnabled && auth) {
+    await sendPasswordResetEmail(auth, email);
+  } else {
+    const users = getMockRegisteredUsers();
+    const exists = users.some(u => u.email.toLowerCase() === email.toLowerCase()) || email.toLowerCase().includes('example') || email.toLowerCase().includes('test');
+    if (!exists) {
+      const err = new Error("auth/user-not-found");
+      (err as any).code = "auth/user-not-found";
+      throw err;
+    }
+    console.log(`Mock password reset link sent to: ${email}`);
   }
 };
 
@@ -210,7 +295,7 @@ export const getUrges = async (userId: string): Promise<UrgeLog[]> => {
 };
 
 // Subscribe to urges updates
-export const subscribeToUrges = (userId: string, callback: (urges: UrgeLog[]) => void) => {
+export const subscribeToUrges = (userId: string, callback: (urges: UrgeLog[]) => void, onError?: (error: any) => void) => {
   if (isFirebaseEnabled && db) {
     const colRef = collection(db, 'users', userId, 'urges');
     const q = query(colRef, orderBy('timestamp', 'desc'));
@@ -222,6 +307,7 @@ export const subscribeToUrges = (userId: string, callback: (urges: UrgeLog[]) =>
       callback(list);
     }, (error) => {
       console.error("Firestore urges listen error: ", error);
+      if (onError) onError(error);
     });
   } else {
     // Local storage polling/trigger fallback

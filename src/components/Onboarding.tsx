@@ -4,7 +4,7 @@ import { UserProfile } from '../types';
 import { Heart, Sparkles, Check, ArrowRight, BookOpen, Smile, Briefcase } from 'lucide-react';
 
 interface OnboardingProps {
-  onComplete: (profile: UserProfile) => void;
+  onComplete: (profile: UserProfile) => Promise<void>;
 }
 
 const COMMON_HABITS = [
@@ -52,6 +52,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [workHour, setWorkHour] = useState('09:00');
   const [sleepHour, setSleepHour] = useState('23:00');
   const [preference, setPreference] = useState('kinetic');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleToggleTrigger = (trig: string) => {
     if (triggers.includes(trig)) {
@@ -70,22 +72,31 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const selectedHabit = habit === 'custom' ? customHabit : habit;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1 && !selectedHabit) return;
     if (step === 2 && triggers.length === 0) return;
     if (step < 5) {
       setStep(step + 1);
     } else {
-      onComplete({
-        habitToBreak: selectedHabit,
-        triggers: triggers,
-        wakeHour,
-        workHour,
-        sleepHour,
-        distractionPreference: preference,
-        domain: domain,
-        createdAt: new Date().toISOString()
-      });
+      setSubmitting(true);
+      setErrorMsg(null);
+      try {
+        await onComplete({
+          habitToBreak: selectedHabit,
+          triggers: triggers,
+          wakeHour,
+          workHour,
+          sleepHour,
+          distractionPreference: preference,
+          domain: domain,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err: any) {
+        console.error("Error saving onboarding profile: ", err);
+        setErrorMsg(err?.message || "Failed to save profile. Please check your network or Firestore rules.");
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -365,14 +376,21 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
           </div>
         )}
 
+        {errorMsg && (
+          <div className="mt-6 p-4 rounded-2xl border border-rose-100 bg-rose-50 text-rose-800 text-xs leading-relaxed" id="onboarding-error-banner">
+            {errorMsg}
+          </div>
+        )}
+
         {/* Footer Controls */}
         <div className="flex justify-between items-center mt-8 pt-4 border-t border-slate-100">
           <button
             type="button"
             onClick={handleBack}
+            disabled={submitting}
             className={`px-4 py-2 text-sm text-slate-400 font-mono font-bold hover:text-slate-700 focus:outline-none transition-all duration-150 cursor-pointer ${
               step === 1 ? 'opacity-0 pointer-events-none' : ''
-            }`}
+            } ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
             id="onboarding-back-btn"
           >
             BACK
@@ -382,15 +400,16 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             type="button"
             onClick={handleNext}
             disabled={
+              submitting ||
               (step === 1 && !selectedHabit) ||
               (step === 2 && triggers.length === 0)
             }
             className={`px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 cursor-pointer ${
-              ((step === 1 && !selectedHabit) || (step === 2 && triggers.length === 0)) ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'
+              (submitting || (step === 1 && !selectedHabit) || (step === 2 && triggers.length === 0)) ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'
             }`}
             id="onboarding-next-btn"
           >
-            <span>{step === 5 ? 'COMPLETE SETUP' : 'CONTINUE'}</span>
+            <span>{submitting ? 'COMPLETING...' : step === 5 ? 'COMPLETE SETUP' : 'CONTINUE'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

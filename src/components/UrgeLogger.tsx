@@ -15,11 +15,13 @@ export default function UrgeLogger({ profile, onLogUrge, onRequestDistraction }:
   const [status, setStatus] = useState<'resisted' | 'given_in'>('resisted');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setSuccessMessage(null);
+    setErrorMessage(null);
 
     const triggerContext = context.trim() || "Unspecified trigger";
     
@@ -43,8 +45,9 @@ export default function UrgeLogger({ profile, onLogUrge, onRequestDistraction }:
       // Reset
       setContext('');
       setIntensity(5);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to log urge:", error);
+      setErrorMessage(`Failed to record urge in database: ${error.message || "Please check your network or Firebase rules."}`);
     } finally {
       setLoading(false);
     }
@@ -166,6 +169,17 @@ export default function UrgeLogger({ profile, onLogUrge, onRequestDistraction }:
           id="success-message-banner"
         >
           {successMessage}
+        </motion.div>
+      )}
+
+      {errorMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-2xl border border-rose-100 bg-rose-50 text-rose-800 text-xs leading-relaxed"
+          id="error-message-banner"
+        >
+          {errorMessage}
         </motion.div>
       )}
     </div>

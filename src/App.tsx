@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   subscribeToAuth, 
   signOutUser, 
@@ -8,12 +8,12 @@ import {
   subscribeToUrges, 
   saveChatMessage, 
   getChatHistory, 
-  clearChatHistory,
-  isFirebaseEnabled 
+  clearChatHistory
 } from './lib/firebase';
 import { UserProfile, UrgeLog, ChatMessage } from './types';
 import { calculateStreak } from './lib/streak';
 import Onboarding from './components/Onboarding';
+import AuthScreen from './components/AuthScreen';
 import DailyNudge from './components/DailyNudge';
 import UrgeLogger from './components/UrgeLogger';
 import DistractionHub from './components/DistractionHub';
@@ -21,16 +21,12 @@ import CoachingChat from './components/CoachingChat';
 import ProgressCharts from './components/ProgressCharts';
 import BreathingReset from './components/BreathingReset';
 import { 
-  Sparkles, 
   LogOut, 
   BrainCircuit, 
   User, 
   Activity, 
   MessageSquare, 
-  Heart, 
-  ListTodo, 
-  Globe,
-  WifiOff
+  ListTodo
 } from 'lucide-react';
 
 export default function App() {
@@ -43,11 +39,8 @@ export default function App() {
   const [streakCount, setStreakCount] = useState(0);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [, setLoadingProfile] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
   
-  // Local Guest Sign-In form state
-  const [guestEmail, setGuestEmail] = useState('');
-  const [guestName, setGuestName] = useState('');
-
   // Subscribe to Auth state changes
   useEffect(() => {
     const unsubscribe = subscribeToAuth((user) => {
@@ -65,10 +58,12 @@ export default function App() {
       setProfile(null);
       setUrges([]);
       setChatHistory([]);
+      setDbError(null);
       return;
     }
 
     setLoadingProfile(true);
+    setDbError(null);
     
     // Load profile
     getUserProfile(currentUser.uid).then((p) => {
@@ -77,17 +72,24 @@ export default function App() {
     }).catch(err => {
       console.error("Error loading user profile: ", err);
       setLoadingProfile(false);
+      setDbError(`Failed to load user profile: ${err.message || "Please check your network or Firestore rules."}`);
     });
 
     // Subscribe to urge logs
     const unsubscribeUrges = subscribeToUrges(currentUser.uid, (logs) => {
       setUrges(logs);
       setStreakCount(calculateStreak(logs));
+    }, (err) => {
+      console.error("Error subscribing to urges: ", err);
+      setDbError(`Failed to subscribe to urge updates: ${err.message || "Please check your Firestore rules."}`);
     });
 
     // Load Chat history
     getChatHistory(currentUser.uid).then((history) => {
       setChatHistory(history);
+    }).catch(err => {
+      console.error("Error loading chat history: ", err);
+      setDbError(`Failed to load chat history: ${err.message || "Please check your Firestore rules."}`);
     });
 
     return () => {
@@ -133,7 +135,20 @@ export default function App() {
     
     const updatedHistory = [...chatHistory, userMsg];
     setChatHistory(updatedHistory);
-    await saveChatMessage(currentUser.uid, userMsg);
+    
+    try {
+      await saveChatMessage(currentUser.uid, userMsg);
+    } catch (err: any) {
+      console.error("Failed to save user chat message: ", err);
+      const errAlertMsg: ChatMessage = {
+        id: Math.random().toString(36).substring(2, 9),
+        sender: 'ai',
+        text: `⚠️ Sync Warning: Unable to save message to the database. This can happen if Firebase rules or write permissions are not fully configured.\nError: ${err.message || err}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, errAlertMsg]);
+      return;
+    }
 
     // 2. Call server-side Express endpoint to query Gemini
     try {
@@ -146,20 +161,35 @@ export default function App() {
         })
       });
       
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+      
       const data = await response.json();
       
       // 3. Create and save AI message
       const aiMsg: ChatMessage = {
         id: Math.random().toString(36).substring(2, 9),
         sender: 'ai',
-        text: data.text,
+        text: data.text || "I am reflecting on your response. Could you please share more?",
         timestamp: new Date().toISOString()
       };
       
       setChatHistory(prev => [...prev, aiMsg]);
-      await saveChatMessage(currentUser.uid, aiMsg);
-    } catch (error) {
+      try {
+        await saveChatMessage(currentUser.uid, aiMsg);
+      } catch (e) {
+        console.warn("Failed to write AI chat message to cloud:", e);
+      }
+    } catch (error: any) {
       console.error("Failed to fetch coaching chat response: ", error);
+      const aiErrorMsg: ChatMessage = {
+        id: Math.random().toString(36).substring(2, 9),
+        sender: 'ai',
+        text: `I had a brief connection interruption with my AI core. Take a slow, intentional breath, and try sending your message again in a few moments.\n(Error: ${error.message || error})`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, aiErrorMsg]);
     }
   };
 
@@ -169,21 +199,6 @@ export default function App() {
       await clearChatHistory(currentUser.uid);
       setChatHistory([]);
     }
-  };
-
-  const handleLocalSignIn = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!guestName || !guestEmail) return;
-    
-    // Simulate auth login with client local storage
-    const uid = 'guest_' + Math.random().toString(36).substring(2, 9);
-    const guestUser = {
-      uid,
-      email: guestEmail,
-      displayName: guestName
-    };
-    localStorage.setItem('habit_coach_mock_user', JSON.stringify(guestUser));
-    setCurrentUser(guestUser);
   };
 
   const handleLogout = async () => {
@@ -202,105 +217,7 @@ export default function App() {
   // --- 1. Login / Welcome View ---
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between" id="welcome-screen">
-        <header className="px-6 py-5 max-w-7xl mx-auto w-full flex justify-between items-center border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <BrainCircuit className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-sm font-bold tracking-tight font-sans text-slate-800">Habit Coaching Sanctuary</span>
-          </div>
-          <div className="flex items-center gap-2 text-xs font-mono font-bold text-slate-400">
-            {isFirebaseEnabled ? (
-              <span className="flex items-center gap-1.5 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 uppercase tracking-wider text-[10px]">
-                <Globe className="w-3.5 h-3.5" />
-                ONLINE DB ENABLED
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-100 uppercase tracking-wider text-[10px]">
-                <WifiOff className="w-3.5 h-3.5" />
-                OFFLINE LOCAL STORAGE
-              </span>
-            )}
-          </div>
-        </header>
-
-        <main className="max-w-4xl mx-auto w-full px-4 py-16 flex-1 flex flex-col md:flex-row items-center justify-center gap-12">
-          {/* Brand Introduction */}
-          <div className="flex-1 space-y-6 text-center md:text-left">
-            <div className="space-y-4">
-              <span className="text-[10px] font-mono text-indigo-600 uppercase tracking-widest font-bold block">
-                INTELLIGENT HABIT REALIGNMENT
-              </span>
-              <h1 className="text-4xl md:text-5xl font-sans font-bold tracking-tight text-slate-800 leading-none">
-                Rewrite your automatic reactions.
-              </h1>
-              <p className="text-sm text-slate-600 leading-relaxed max-w-md">
-                Overcome screen-time, doomscrolling, and mindless distractions. Shift focus through responsive real-time challenges, AI prompts, and personal neuroscience tracking.
-              </p>
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div className="flex items-start gap-3.5 text-sm text-left">
-                <Heart className="w-5 h-5 text-indigo-600 fill-indigo-50 mt-0.5 flex-shrink-0" />
-                <span><strong>Positive alternatives:</strong> Generates fun tactile and physical alternatives immediately to replace bad cravings.</span>
-              </div>
-              <div className="flex items-start gap-3.5 text-sm text-left">
-                <Sparkles className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
-                <span><strong>Coaching without judgment:</strong> Gemini coaching that adjusts dynamically, guiding you safely through slips and celebrating streaks.</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Authentic login box */}
-          <div className="w-full max-w-sm bg-white border border-slate-100 rounded-3xl p-8 shadow-sm space-y-6">
-            <div className="space-y-1">
-              <h2 className="text-lg font-sans font-bold text-slate-800 tracking-tight">Create your sanctuary</h2>
-              <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Configure your personal setup</p>
-            </div>
-
-            <form onSubmit={handleLocalSignIn} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono font-bold text-slate-400 block" htmlFor="login-name">YOUR FIRST NAME</label>
-                <input
-                  id="login-name"
-                  type="text"
-                  required
-                  placeholder="e.g. Alex"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono font-bold text-slate-400 block" htmlFor="login-email">EMAIL ADDRESS</label>
-                <input
-                  id="login-email"
-                  type="email"
-                  required
-                  placeholder="e.g. alex@example.com"
-                  value={guestEmail}
-                  onChange={(e) => setGuestEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl text-xs font-bold tracking-wider font-mono uppercase transition-all duration-150 shadow-sm cursor-pointer"
-                id="guest-login-btn"
-              >
-                ENTER SECURE GUEST SANCTUARY
-              </button>
-            </form>
-          </div>
-        </main>
-
-        <footer className="py-6 border-t border-slate-100 text-center text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
-          © {new Date().getFullYear()} HABIT RE-ALIGNMENT SYSTEM • PRIVATE & SECURE DATA PLATFORM
-        </footer>
-      </div>
+      <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} />
     );
   }
 
@@ -316,6 +233,22 @@ export default function App() {
   // --- 3. Master Dashboard Shell ---
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col" id="dashboard-container">
+      {/* Global database connection or permission warning banner */}
+      {dbError && (
+        <div className="bg-rose-600 text-white text-xs px-4 py-2.5 font-mono flex justify-between items-center z-50 shadow-md">
+          <span className="flex items-center gap-1.5">
+            <span className="font-bold">⚠️ DATABASE CONNECTION WARNING:</span>
+            {dbError}
+          </span>
+          <button 
+            onClick={() => setDbError(null)}
+            className="underline hover:text-rose-100 font-bold cursor-pointer"
+          >
+            DISMISS
+          </button>
+        </div>
+      )}
+
       {/* Dynamic Alert Banner for Active Trigger redirection */}
       {activeTrigger && (
         <div className="bg-indigo-600 text-white text-xs px-4 py-2.5 font-mono flex justify-between items-center z-50 shadow-md">
