@@ -118,7 +118,7 @@ function getFallbackNudge(habit: string, domain: string = "general") {
   return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
-function getFallbackDistractions(habit: string, trigger: string, domain: string = "general", preference: string = "kinetic") {
+function getFallbackDistractions(habit: string, _trigger: string, domain: string = "general", preference: string = "kinetic") {
   let themeName = "Kinetic Circuit Breaker";
   let tasks: Array<{id: string, title: string, description: string, durationMinutes: number, completed: boolean}> = [];
 
@@ -359,7 +359,7 @@ function getFallbackDistractions(habit: string, trigger: string, domain: string 
 // --- API Endpoints ---
 
 // 1. Health/Config endpoint
-app.get("/api/config", (req, res) => {
+app.get("/api/config", (_req, res) => {
   res.json({
     aiActive: !!ai,
     message: ai ? "AI coaching is active." : "AI coaching is in fallback mode. Please configure GEMINI_API_KEY."
@@ -417,9 +417,9 @@ app.post("/api/gemini/nudge", async (req, res) => {
 
     const text = response.text;
     if (text) {
-      res.json(JSON.parse(text.trim()));
+      return res.json(JSON.parse(text.trim()));
     } else {
-      res.json(getFallbackNudge(habit, domain));
+      return res.json(getFallbackNudge(habit, domain));
     }
   } catch (error: any) {
     const errorStr = error instanceof Error ? error.message : String(error);
@@ -428,7 +428,7 @@ app.post("/api/gemini/nudge", async (req, res) => {
     } else {
       console.log(`[Gemini Info] Local fallback nudge active. Reason: ${errorStr.slice(0, 100)}`);
     }
-    res.json(getFallbackNudge(habit, domain));
+    return res.json(getFallbackNudge(habit, domain));
   }
 });
 
@@ -499,9 +499,9 @@ app.post("/api/gemini/distraction", async (req, res) => {
 
     const text = response.text;
     if (text) {
-      res.json(JSON.parse(text.trim()));
+      return res.json(JSON.parse(text.trim()));
     } else {
-      res.json(getFallbackDistractions(habit, trigger, domain, preference));
+      return res.json(getFallbackDistractions(habit, trigger, domain, preference));
     }
   } catch (error: any) {
     const errorStr = error instanceof Error ? error.message : String(error);
@@ -510,7 +510,7 @@ app.post("/api/gemini/distraction", async (req, res) => {
     } else {
       console.log(`[Gemini Info] Local fallback distraction active. Reason: ${errorStr.slice(0, 100)}`);
     }
-    res.json(getFallbackDistractions(habit, trigger, domain, preference));
+    return res.json(getFallbackDistractions(habit, trigger, domain, preference));
   }
 });
 
@@ -564,7 +564,7 @@ app.post("/api/gemini/chat", async (req, res) => {
     });
 
     const text = response.text;
-    res.json({ text: text || "I am right here with you. Take a deep breath and let's keep moving forward." });
+    return res.json({ text: text || "I am right here with you. Take a deep breath and let's keep moving forward." });
   } catch (error: any) {
     const errorStr = error instanceof Error ? error.message : String(error);
     if (errorStr.includes("429") || errorStr.includes("quota") || errorStr.includes("QUOTA_EXCEEDED") || errorStr.includes("RESOURCE_EXHAUSTED")) {
@@ -579,7 +579,7 @@ app.post("/api/gemini/chat", async (req, res) => {
     } else if (lastUserMessage.toLowerCase().includes("sad") || lastUserMessage.toLowerCase().includes("stress") || lastUserMessage.toLowerCase().includes("anxious")) {
       reply = `It's completely natural to seek out ${habit} when feeling stressed or overwhelmed. Let's do a micro-stretch: roll your shoulders backward 3 times, sit up tall, and release your jaw. I am here to support you step-by-step.`;
     }
-    res.json({ text: reply });
+    return res.json({ text: reply });
   }
 });
 
@@ -599,7 +599,7 @@ async function startServer() {
     // Serve static files in production
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req: express.Request, res: express.Response) => {
+    app.get('*', (_req: express.Request, res: express.Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
     console.log("Serving production static assets from dist/");

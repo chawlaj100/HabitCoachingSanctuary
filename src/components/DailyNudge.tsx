@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile, NudgeInsight } from '../types';
 import { Sparkles, Brain, Compass, HelpCircle, RefreshCw } from 'lucide-react';

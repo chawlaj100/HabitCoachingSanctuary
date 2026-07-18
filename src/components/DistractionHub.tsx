@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile, DistractionList, DistractionTask } from '../types';
 import { ShieldAlert, CheckCircle2, Circle, Clock, Flame, RotateCcw, AlertCircle } from 'lucide-react';

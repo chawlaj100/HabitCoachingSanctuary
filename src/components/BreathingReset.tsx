@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserProfile, UrgeLog } from '../types';
-import { Wind, Play, Square, Check, RefreshCw, Star, Sparkles } from 'lucide-react';
+import { UserProfile } from '../types';
+import { Wind, Play, Square, Check, RefreshCw, Star } from 'lucide-react';
 
 interface BreathingResetProps {
   profile: UserProfile;

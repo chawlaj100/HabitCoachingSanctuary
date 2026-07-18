@@ -24,7 +24,7 @@ export default function UrgeLogger({ profile, onLogUrge, onRequestDistraction }:
     const triggerContext = context.trim() || "Unspecified trigger";
     
     try {
-      const logged = await onLogUrge({
+      await onLogUrge({
         timestamp: new Date().toISOString(),
         intensity,
         triggerContext,
@@ -58,7 +58,7 @@ export default function UrgeLogger({ profile, onLogUrge, onRequestDistraction }:
           Urge Logger & Real-time Anchor
         </h3>
         <p className="text-xs text-slate-500">
-          Feeling an urge? Externalize it immediately. Naming is the first step of breaking the habit.
+          Feeling an urge to engage in "{profile.habitToBreak}"? Externalize it immediately. Naming is the first step of breaking the habit.
         </p>
       </div>
 

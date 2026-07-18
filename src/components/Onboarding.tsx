@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
 import { Heart, Sparkles, Check, ArrowRight, BookOpen, Smile, Briefcase } from 'lucide-react';

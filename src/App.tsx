@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
 import { 
   subscribeToAuth, 
   signOutUser, 
@@ -13,6 +12,7 @@ import {
   isFirebaseEnabled 
 } from './lib/firebase';
 import { UserProfile, UrgeLog, ChatMessage } from './types';
+import { calculateStreak } from './lib/streak';
 import Onboarding from './components/Onboarding';
 import DailyNudge from './components/DailyNudge';
 import UrgeLogger from './components/UrgeLogger';
@@ -27,10 +27,8 @@ import {
   User, 
   Activity, 
   MessageSquare, 
-  Shield, 
   Heart, 
   ListTodo, 
-  Lock,
   Globe,
   WifiOff
 } from 'lucide-react';
@@ -44,7 +42,7 @@ export default function App() {
   const [activeTrigger, setActiveTrigger] = useState<string | null>(null);
   const [streakCount, setStreakCount] = useState(0);
   const [loadingAuth, setLoadingAuth] = useState(true);
-  const [loadingProfile, setLoadingProfile] = useState(false);
+  const [, setLoadingProfile] = useState(false);
   
   // Local Guest Sign-In form state
   const [guestEmail, setGuestEmail] = useState('');
@@ -84,33 +82,7 @@ export default function App() {
     // Subscribe to urge logs
     const unsubscribeUrges = subscribeToUrges(currentUser.uid, (logs) => {
       setUrges(logs);
-      
-      // Calculate active streak based on resistance
-      // For this algorithm, streak is the number of consecutive days with at least one 'resisted' urge and ZERO 'given_in' slips.
-      // If there are no slips logged in the last 24 hours, streak increments by 1 for each day.
-      // Let's compute a friendly realistic streak count based on the logs, and fallback to 1 if they have any logs, otherwise 0.
-      if (logs.length === 0) {
-        setStreakCount(0);
-      } else {
-        const slips = logs.filter(l => l.status === 'given_in');
-        if (slips.length === 0) {
-          // No slips! Streak is active. Let's base it on the number of resisted urges, maxed at a reasonable streak or days of usage.
-          const uniqueDays = new Set(logs.map(l => l.timestamp.split('T')[0])).size;
-          setStreakCount(uniqueDays || 1);
-        } else {
-          // If latest log is a slip, streak is 0. Otherwise count days since last slip.
-          const latestLog = logs[0];
-          if (latestLog.status === 'given_in') {
-            setStreakCount(0);
-          } else {
-            // Count resisted logs after the latest slip
-            const latestSlipTime = new Date(slips[0].timestamp).getTime();
-            const logsSinceSlip = logs.filter(l => new Date(l.timestamp).getTime() > latestSlipTime);
-            const uniqueDays = new Set(logsSinceSlip.map(l => l.timestamp.split('T')[0])).size;
-            setStreakCount(uniqueDays || 1);
-          }
-        }
-      }
+      setStreakCount(calculateStreak(logs));
     });
 
     // Load Chat history

@@ -5,8 +5,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup, 
   signOut, 
-  onAuthStateChanged,
-  User
+  onAuthStateChanged
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -97,7 +96,7 @@ export const subscribeToAuth = (callback: AuthCallback) => {
   authSubscribers.add(callback);
   
   if (isFirebaseEnabled && auth) {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (_user) => {
       notifyAuthChange();
     });
     // Immediately notify with current state

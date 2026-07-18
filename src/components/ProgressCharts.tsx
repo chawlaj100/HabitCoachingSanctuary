@@ -1,6 +1,5 @@
-import React from 'react';
 import { UrgeLog } from '../types';
-import { Flame, ShieldCheck, AlertCircle, TrendingUp, Calendar } from 'lucide-react';
+import { Flame, TrendingUp, Calendar } from 'lucide-react';
 
 interface ProgressChartsProps {
   streakCount: number;
@@ -104,7 +103,7 @@ export default function ProgressCharts({ streakCount, urges }: ProgressChartsPro
                 points={polylinePoints}
               />
               {/* Highlight Nodes */}
-              {points.map((p, idx) => (
+              {points.map((p) => (
                 <g key={p.id}>
                   <circle
                     cx={p.x}

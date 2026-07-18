@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'motion/react';
 import { UserProfile, ChatMessage } from '../types';
-import { MessageSquare, Send, Sparkles, AlertTriangle } from 'lucide-react';
+import { MessageSquare, Send, Sparkles } from 'lucide-react';
 
 interface CoachingChatProps {
   profile: UserProfile;
