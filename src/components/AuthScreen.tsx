@@ -4,7 +4,8 @@ import {
   signInWithGoogle, 
   signInWithEmail, 
   signUpWithEmail, 
-  resetPassword 
+  resetPassword,
+  enterSandboxMode
 } from '../lib/firebase';
 import { 
   validateEmail, 
@@ -132,14 +133,16 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       case 'auth/unauthorized-domain':
         return "This domain is not authorized in your Firebase console. Please add your App URL to 'Authorized domains' in your Firebase Auth settings.";
       case 'auth/popup-closed-by-user':
-        return "The login popup was closed before completion. Please try again.";
+        return "The login popup was closed before completion. If you are inside the sandboxed preview iframe, browser restrictions may prevent Google popup communication. Please click 'Launch Local Sandbox' below, or open the app in a new tab.";
       case 'auth/popup-blocked':
-        return "The login popup was blocked. Please enable popups or try opening the app in a new tab.";
+        return "The login popup was blocked. Please enable popups or try clicking 'Launch Local Sandbox' below.";
+      case 'auth/network-request-failed':
+        return "A network/CORS error occurred. Browser security blocks cross-origin Firebase popups inside embedded preview iframes. Please try the 'Launch Local Sandbox' button below, or open the app in a new tab.";
       case 'auth/operation-not-allowed':
       case 'auth/configuration-not-found':
         return "Google sign-in is not enabled in your Firebase project. Please go to the Firebase Console (Authentication > Sign-in method), click 'Add new provider', and enable 'Google'.";
       default:
-        return `Authentication failed: ${code}. Please open the app in a new tab or check your console.`;
+        return `Authentication failed: ${code}. Since this is an embedded iframe, you can click 'Launch Local Sandbox' below to try all features instantly offline!`;
     }
   };
 
@@ -155,6 +158,21 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       console.error(err);
       setToast({
         message: translateAuthError(err?.code || 'auth/google-failed'),
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSandboxEntrance = () => {
+    setLoading(true);
+    try {
+      enterSandboxMode();
+    } catch (err: any) {
+      console.error("Sandbox initialization failed:", err);
+      setToast({
+        message: "Failed to initialize local sandbox. Please try again.",
         type: 'error'
       });
     } finally {
@@ -420,7 +438,18 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                 Continue with Google
               </button>
 
-              <div className="relative flex py-2 items-center">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleSandboxEntrance}
+                className="w-full py-3 bg-indigo-50 hover:bg-indigo-100/70 text-indigo-700 rounded-2xl text-xs font-bold tracking-wide font-mono uppercase flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer border border-indigo-100"
+                id="sandbox-signin-btn"
+              >
+                <Sparkles className="w-4 h-4 text-indigo-500" />
+                Launch Local Sandbox (No-Sign-In Demo)
+              </button>
+
+              <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-slate-100"></div>
                 <span className="flex-shrink mx-4 text-[10px] font-mono font-bold text-slate-300 uppercase tracking-widest">or email login</span>
                 <div className="flex-grow border-t border-slate-100"></div>

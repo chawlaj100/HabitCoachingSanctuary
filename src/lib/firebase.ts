@@ -62,6 +62,16 @@ if (hasConfig) {
   console.log("No Firebase config detected. Running in Offline-First Local Storage mode.");
 }
 
+// Check if client is in local sandbox/offline override mode
+export const isOnlineMode = () => {
+  return isFirebaseEnabled && localStorage.getItem('habit_coach_sandbox_active') !== 'true';
+};
+
+export const enterSandboxMode = () => {
+  localStorage.setItem('habit_coach_sandbox_active', 'true');
+  loginMockUser("sandbox-guest@example.com", "Sandbox Guest", "sandbox_user_123");
+};
+
 // Local Storage Fallback State & API
 const LOCAL_STORAGE_KEYS = {
   PROFILE: 'habit_coach_profile',
@@ -88,7 +98,7 @@ if (storedMockUser) {
 
 // Function to trigger auth updates to subscribers
 function notifyAuthChange() {
-  const userToSend = isFirebaseEnabled ? auth?.currentUser : mockCurrentUser;
+  const userToSend = isOnlineMode() ? auth?.currentUser : mockCurrentUser;
   const normalizedUser = userToSend 
     ? { uid: userToSend.uid, email: userToSend.email, displayName: userToSend.displayName } 
     : null;
@@ -99,7 +109,7 @@ function notifyAuthChange() {
 export const subscribeToAuth = (callback: AuthCallback) => {
   authSubscribers.add(callback);
   
-  if (isFirebaseEnabled && auth) {
+  if (isOnlineMode() && auth) {
     const unsubscribe = onAuthStateChanged(auth, (_user) => {
       notifyAuthChange();
     });
@@ -129,7 +139,7 @@ export const loginMockUser = (email: string, displayName: string, uid?: string) 
 };
 
 export const signInWithGoogle = async () => {
-  if (isFirebaseEnabled && auth) {
+  if (isOnlineMode() && auth) {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -164,7 +174,7 @@ const saveMockRegisteredUser = (user: MockRegisteredUser) => {
 };
 
 export const signInWithEmail = async (email: string, password?: string) => {
-  if (isFirebaseEnabled && auth) {
+  if (isOnlineMode() && auth) {
     const result = await signInWithEmailAndPassword(auth, email, password || '');
     return result.user;
   } else {
@@ -186,7 +196,7 @@ export const signInWithEmail = async (email: string, password?: string) => {
 };
 
 export const signUpWithEmail = async (email: string, password?: string, displayName?: string) => {
-  if (isFirebaseEnabled && auth) {
+  if (isOnlineMode() && auth) {
     const result = await createUserWithEmailAndPassword(auth, email, password || '');
     if (displayName) {
       await updateProfile(result.user, { displayName });
@@ -212,7 +222,7 @@ export const signUpWithEmail = async (email: string, password?: string, displayN
 };
 
 export const resetPassword = async (email: string) => {
-  if (isFirebaseEnabled && auth) {
+  if (isOnlineMode() && auth) {
     await sendPasswordResetEmail(auth, email);
   } else {
     const users = getMockRegisteredUsers();
@@ -227,7 +237,8 @@ export const resetPassword = async (email: string) => {
 };
 
 export const signOutUser = async () => {
-  if (isFirebaseEnabled && auth) {
+  localStorage.removeItem('habit_coach_sandbox_active'); // Clear sandbox active mode on signout to allow retry
+  if (isOnlineMode() && auth) {
     await signOut(auth);
   } else {
     mockCurrentUser = null;
@@ -238,7 +249,7 @@ export const signOutUser = async () => {
 
 // 2. USER PROFILE API
 export const saveUserProfile = async (userId: string, profile: UserProfile) => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     await setDoc(doc(db, 'users', userId), profile);
   } else {
     localStorage.setItem(`${LOCAL_STORAGE_KEYS.PROFILE}_${userId}`, JSON.stringify(profile));
@@ -246,7 +257,7 @@ export const saveUserProfile = async (userId: string, profile: UserProfile) => {
 };
 
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     const docRef = doc(db, 'users', userId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -266,7 +277,7 @@ export const logUrge = async (userId: string, urge: Omit<UrgeLog, 'id'>) => {
     id: Math.random().toString(36).substring(2, 9)
   };
 
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     const colRef = collection(db, 'users', userId, 'urges');
     await addDoc(colRef, newUrge);
   } else {
@@ -279,7 +290,7 @@ export const logUrge = async (userId: string, urge: Omit<UrgeLog, 'id'>) => {
 };
 
 export const getUrges = async (userId: string): Promise<UrgeLog[]> => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     const colRef = collection(db, 'users', userId, 'urges');
     const q = query(colRef, orderBy('timestamp', 'desc'));
     const snap = await getDocs(q);
@@ -296,7 +307,7 @@ export const getUrges = async (userId: string): Promise<UrgeLog[]> => {
 
 // Subscribe to urges updates
 export const subscribeToUrges = (userId: string, callback: (urges: UrgeLog[]) => void, onError?: (error: any) => void) => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     const colRef = collection(db, 'users', userId, 'urges');
     const q = query(colRef, orderBy('timestamp', 'desc'));
     return onSnapshot(q, (snap) => {
@@ -331,7 +342,7 @@ export const subscribeToUrges = (userId: string, callback: (urges: UrgeLog[]) =>
 
 // 4. CHAT HISTORY API
 export const saveChatMessage = async (userId: string, message: ChatMessage) => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     const colRef = collection(db, 'users', userId, 'chat_history');
     await addDoc(colRef, message);
   } else {
@@ -343,7 +354,7 @@ export const saveChatMessage = async (userId: string, message: ChatMessage) => {
 };
 
 export const getChatHistory = async (userId: string): Promise<ChatMessage[]> => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     const colRef = collection(db, 'users', userId, 'chat_history');
     const q = query(colRef, orderBy('timestamp', 'asc'));
     const snap = await getDocs(q);
@@ -359,7 +370,7 @@ export const getChatHistory = async (userId: string): Promise<ChatMessage[]> => 
 };
 
 export const clearChatHistory = async (userId: string) => {
-  if (isFirebaseEnabled && db) {
+  if (isOnlineMode() && db) {
     // Firestore clear is recursive/manual, for simplicity we just let it be, 
     // but we can clear client local state if needed.
   }
