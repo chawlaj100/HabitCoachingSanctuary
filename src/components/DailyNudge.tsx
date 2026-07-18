@@ -35,7 +35,7 @@ export default function DailyNudge({ profile, streakCount, urgesCount }: DailyNu
 
   useEffect(() => {
     fetchNudge();
-  }, [profile.habitToBreak]);
+  }, [profile?.habitToBreak, profile?.domain]);
 
   const getCategoryMeta = (category: string) => {
     switch (category) {

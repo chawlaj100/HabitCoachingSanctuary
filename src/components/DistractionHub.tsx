@@ -56,7 +56,7 @@ export default function DistractionHub({
       // Load a general daily set at startup
       fetchDistractions("general boredom");
     }
-  }, [activeTrigger, profile.distractionPreference]);
+  }, [activeTrigger, profile?.distractionPreference, profile?.domain]);
 
   useEffect(() => {
     if (distractionList) {

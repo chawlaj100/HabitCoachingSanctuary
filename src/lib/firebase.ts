@@ -109,23 +109,26 @@ function notifyAuthChange() {
 export const subscribeToAuth = (callback: AuthCallback) => {
   authSubscribers.add(callback);
   
-  if (isOnlineMode() && auth) {
-    const unsubscribe = onAuthStateChanged(auth, (_user) => {
+  let unsubscribeFirebase: (() => void) | null = null;
+  if (isFirebaseEnabled && auth) {
+    unsubscribeFirebase = onAuthStateChanged(auth, (_user) => {
       notifyAuthChange();
     });
-    // Immediately notify with current state
-    const normalizedUser = auth.currentUser 
-      ? { uid: auth.currentUser.uid, email: auth.currentUser.email, displayName: auth.currentUser.displayName } 
-      : null;
-    callback(normalizedUser);
-    return unsubscribe;
-  } else {
-    // Immediately notify with current mock state
-    callback(mockCurrentUser);
-    return () => {
-      authSubscribers.delete(callback);
-    };
   }
+
+  // Immediately notify with current state
+  const userToSend = isOnlineMode() ? auth?.currentUser : mockCurrentUser;
+  const normalizedUser = userToSend 
+    ? { uid: userToSend.uid, email: userToSend.email, displayName: userToSend.displayName } 
+    : null;
+  callback(normalizedUser);
+
+  return () => {
+    if (unsubscribeFirebase) {
+      unsubscribeFirebase();
+    }
+    authSubscribers.delete(callback);
+  };
 };
 
 export const loginMockUser = (email: string, displayName: string, uid?: string) => {
@@ -237,14 +240,22 @@ export const resetPassword = async (email: string) => {
 };
 
 export const signOutUser = async () => {
+  const wasSandbox = localStorage.getItem('habit_coach_sandbox_active') === 'true';
   localStorage.removeItem('habit_coach_sandbox_active'); // Clear sandbox active mode on signout to allow retry
-  if (isOnlineMode() && auth) {
-    await signOut(auth);
-  } else {
-    mockCurrentUser = null;
-    localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
-    notifyAuthChange();
+  
+  // Clean mock session state and local storage keys
+  mockCurrentUser = null;
+  localStorage.removeItem(LOCAL_STORAGE_KEYS.USER);
+  
+  if (isFirebaseEnabled && auth && !wasSandbox) {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Firebase signOut error:", e);
+    }
   }
+  
+  notifyAuthChange();
 };
 
 // 2. USER PROFILE API

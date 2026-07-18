@@ -202,7 +202,20 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await signOutUser();
+    try {
+      await signOutUser();
+      // Instantly clear all local state to make the logout feel incredibly snappy and prevent state leaks
+      setCurrentUser(null);
+      setProfile(null);
+      setUrges([]);
+      setChatHistory([]);
+      setActiveTab('dashboard');
+      setActiveTrigger(null);
+      setStreakCount(0);
+      setDbError(null);
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
   };
 
   if (loadingAuth) {

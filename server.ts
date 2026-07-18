@@ -533,11 +533,20 @@ app.post("/api/gemini/chat", async (req, res) => {
   }
 
   // Map messages to Gemini API contents format: { role: 'user' | 'model', parts: [{ text: string }] }
-  // Gemini API requires alternating roles 'user' and 'model'.
-  const apiMessages = messages.map((msg: any) => ({
-    role: msg.sender === "user" ? "user" : "model",
-    parts: [{ text: msg.text }]
-  }));
+  // Gemini API strictly requires alternating roles ('user' then 'model'). 
+  // We consolidate consecutive messages of the same sender to prevent API errors.
+  const apiMessages: any[] = [];
+  for (const msg of messages) {
+    const role = msg.sender === "user" ? "user" : "model";
+    if (apiMessages.length > 0 && apiMessages[apiMessages.length - 1].role === role) {
+      apiMessages[apiMessages.length - 1].parts[0].text += "\n" + msg.text;
+    } else {
+      apiMessages.push({
+        role,
+        parts: [{ text: msg.text }]
+      });
+    }
+  }
 
   const systemInstruction = `
     You are an exceptionally supportive, warm, and professional behavior change coach. Your mission is to help the user break their harmful habit of: "${habit}".
