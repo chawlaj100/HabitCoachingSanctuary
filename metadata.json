@@ -1,0 +1,6 @@
+{
+  "name": "Habit Coaching and Nudge Dashboard",
+  "description": "An intelligent web application that helps users break harmful habits with adaptive AI coaching, dynamic distraction challenges, and daily nudges.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

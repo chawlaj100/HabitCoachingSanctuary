@@ -1,0 +1,35 @@
+{
+  "collections": {
+    "users": {
+      "schema": {
+        "habitToBreak": "string",
+        "triggers": "array",
+        "wakeHour": "string",
+        "workHour": "string",
+        "sleepHour": "string",
+        "distractionPreference": "string",
+        "createdAt": "string"
+      },
+      "subcollections": {
+        "urges": {
+          "schema": {
+            "id": "string",
+            "timestamp": "string",
+            "intensity": "number",
+            "triggerContext": "string",
+            "status": "string",
+            "distractionOffered": "string"
+          }
+        },
+        "chat_history": {
+          "schema": {
+            "id": "string",
+            "sender": "string",
+            "text": "string",
+            "timestamp": "string"
+          }
+        }
+      }
+    }
+  }
+}
